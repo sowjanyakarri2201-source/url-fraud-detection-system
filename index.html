@@ -1,0 +1,2810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UPI FraudShield — Detection & Awareness System</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN SYSTEM
+═══════════════════════════════════════════════════════════════ */
+:root {
+  /* Core palette — deep midnight with electric accents */
+  --ink:       #04070f;
+  --ink2:      #080f1e;
+  --surface:   #0c1529;
+  --surface2:  #111f38;
+  --glass:     rgba(17,31,56,0.7);
+  --border:    #162040;
+  --border2:   #1e2f50;
+
+  /* Brand accent — electric cyan-green */
+  --accent:    #00e8b5;
+  --accent2:   #00bfff;
+  --accent3:   #7b5cff;
+
+  /* Status colors */
+  --danger:    #ff2d55;
+  --warn:      #ff9f0a;
+  --success:   #30d158;
+  --info:      #0a84ff;
+
+  /* Typography */
+  --font:      'Plus Jakarta Sans', sans-serif;
+  --mono:      'IBM Plex Mono', monospace;
+
+  /* Glow effects */
+  --glow-accent:  0 0 24px rgba(0,232,181,.3);
+  --glow-danger:  0 0 24px rgba(255,45,85,.3);
+  --glow-success: 0 0 24px rgba(48,209,88,.3);
+
+  --radius:    16px;
+  --radius-sm: 10px;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font);
+  background: var(--ink);
+  color: #d4e4ff;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Ambient background glow */
+body::before {
+  display: none;
+}
+
+/* Fine grid overlay */
+body::after {
+  display: none;
+}
+
+/* ═══ LOADER ═══ */
+.loader {
+  position: fixed;
+  inset: 0;
+  background: var(--ink);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  animation: loaderFade 0.5s ease 2s forwards;
+}
+@keyframes loaderFade {
+  to { opacity: 0; pointer-events: none; }
+}
+.loader-shield {
+  font-size: 72px;
+  animation: shieldPop .5s ease;
+}
+@keyframes shieldPop {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.loader-title {
+  font-size: 32px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+.loader-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,.3);
+  letter-spacing: 3px;
+}
+.loader-bar {
+  width: 220px;
+  height: 3px;
+  background: var(--border2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.loader-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+  animation: loadFill 1.8s ease forwards;
+}
+@keyframes loadFill { from { width: 0; } to { width: 100%; } }
+
+/* ═══ ALERT TICKER ═══ */
+.ticker-wrap {
+  display: none;
+}
+.ticker-label {
+  background: var(--danger);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.ticker-scroll { flex: 1; overflow: hidden; }
+.ticker-content {
+  display: flex;
+  gap: 80px;
+  animation: scrollTicker 40s linear infinite;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,.45);
+}
+@keyframes scrollTicker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ═══ TOPBAR / NAV ═══ */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(4,7,15,.95);
+  backdrop-filter: blur(15px);
+  border-bottom: 1px solid var(--border);
+  height: 62px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background .3s;
+}
+.logo-icon:hover {
+  background: var(--accent2);
+}
+.logo-text {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.logo-text span { color: var(--accent); }
+.logo-tagline {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: rgba(255,255,255,.3);
+  letter-spacing: 2px;
+  margin-top: 1px;
+}
+
+.nav-pills {
+  display: flex;
+  gap: 3px;
+}
+.nav-pill {
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,.5);
+  border: none;
+  transition: color .2s, background .2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-pill:hover {
+  color: rgba(255,255,255,.8);
+}
+.nav-pill.active {
+  color: var(--accent);
+  background: transparent;
+}
+.nav-badge {
+  background: var(--danger);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 20px;
+}
+
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(48,209,88,.1);
+  border: 1px solid rgba(48,209,88,.22);
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--success);
+}
+.status-dot {
+  width: 7px; height: 7px;
+  background: var(--success);
+  border-radius: 50%;
+}
+
+/* ═══ PAGE SYSTEM ═══ */
+.pages-container { position: relative; z-index: 1; }
+.page {
+  display: none;
+  padding: 28px;
+  animation: pageReveal .3s ease;
+}
+.page.active { display: block; }
+@keyframes pageReveal {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ═══ SECTION HEADER ═══ */
+.sec-header { margin-bottom: 20px; }
+.sec-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  color: #fff;
+}
+.sec-title .hl { color: var(--accent); }
+.sec-desc {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,.3);
+  margin-top: 6px;
+  letter-spacing: .5px;
+}
+
+/* ═══ METRICS ROW ═══ */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.metric-card {
+  background: var(--surface);
+  border: none;
+  border-radius: 9px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: background .25s;
+}
+.metric-card:hover {
+  background: var(--surface2);
+}
+.metric-card::before {
+  display: none;
+}
+.metric-emoji {
+  position: absolute;
+  right: 14px; top: 12px;
+  font-size: 24px;
+  opacity: .08;
+}
+.metric-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: rgba(255,255,255,.35);
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.metric-value {
+  font-size: 34px;
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.mv-danger  { color: var(--danger); }
+.mv-warn    { color: var(--warn); }
+.mv-success { color: var(--success); }
+.mv-info    { color: var(--accent2); }
+.metric-trend {
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.trend-up   { color: var(--danger); }
+.trend-down { color: var(--success); }
+.trend-flat { color: rgba(255,255,255,.3); }
+
+/* ═══ CARDS ═══ */
+.card {
+  background: var(--surface);
+  border: none;
+  border-radius: 10px;
+  padding: 18px;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+.card-subtitle {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,.3);
+  margin-top: 2px;
+}
+
+/* ═══ CHIPS / BADGES ═══ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-weight: 600;
+  letter-spacing: 0px;
+  background: transparent;
+  border: 1px solid;
+}
+.chip-danger  { color: var(--danger);  border-color: var(--danger); }
+.chip-warn    { color: var(--warn);    border-color: var(--warn); }
+.chip-success { color: var(--success); border-color: var(--success); }
+.chip-info    { color: var(--accent2); border-color: var(--accent2); }
+.chip-accent  { color: var(--accent);  border-color: var(--accent); }
+
+/* ═══ LAYOUT GRIDS ═══ */
+.grid-2    { display: grid; grid-template-columns: 1fr 1fr;        gap: 16px; }
+.grid-3    { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.grid-1-2  { display: grid; grid-template-columns: 1fr 1.6fr;     gap: 16px; }
+.grid-2-1  { display: grid; grid-template-columns: 1.6fr 1fr;     gap: 16px; }
+.grid-form { display: grid; grid-template-columns: 400px 1fr;     gap: 20px; }
+.mt-18 { margin-top: 16px; }
+.mt-24 { margin-top: 20px; }
+
+/* ═══ TABLE ═══ */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead tr {
+  border-bottom: 1px solid var(--border);
+}
+.data-table th {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: rgba(255,255,255,.35);
+  letter-spacing: 1px;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 400;
+}
+.data-table tbody tr {
+  border-bottom: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .15s;
+}
+.data-table tbody tr:hover { background: var(--surface2); }
+.data-table td {
+  padding: 11px 12px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.cell-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cell-avatar {
+  width: 37px; height: 37px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.av-danger  { background: rgba(255,45,85,.15); }
+.av-warn    { background: rgba(255,159,10,.15); }
+.av-success { background: rgba(48,209,88,.1); }
+.cell-main  { font-weight: 600; font-size: 13px; color: #fff; }
+.cell-sub   { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.3); margin-top: 1px; }
+.amount-deb { font-family: var(--mono); font-weight: 700; color: var(--danger); }
+.amount-cre { font-family: var(--mono); font-weight: 700; color: var(--success); }
+
+/* Risk bar */
+.risk-cell { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.risk-track {
+  flex: 1;
+  height: 5px;
+  background: var(--border2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.risk-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .8s ease;
+}
+.rf-danger  { background: linear-gradient(90deg, var(--danger), #ff6b6b); }
+.rf-warn    { background: linear-gradient(90deg, var(--warn), #ffd60a); }
+.rf-success { background: var(--success); }
+.risk-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  width: 26px;
+  text-align: right;
+}
+.rn-danger  { color: var(--danger); }
+.rn-warn    { color: var(--warn); }
+.rn-success { color: var(--success); }
+
+/* ═══ ALERT CARDS ═══ */
+.alert-stack { display: flex; flex-direction: column; gap: 10px; }
+.alert-card {
+  padding: 12px;
+  background: var(--surface2);
+  border-radius: 8px;
+  border: none;
+  border-left: 2px solid;
+  transition: background .2s;
+}
+.alert-card:hover { background: var(--surface2); }
+.al-danger  { border-left-color: var(--danger); }
+.al-warn    { border-left-color: var(--warn); }
+.al-info    { border-left-color: var(--accent2); }
+.alert-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  gap: 8px;
+}
+.alert-title { font-weight: 700; font-size: 13px; color: #fff; }
+.alert-time  { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.3); white-space: nowrap; }
+.alert-body  { font-size: 12px; color: rgba(255,255,255,.5); line-height: 1.55; }
+.alert-btns  { display: flex; gap: 7px; margin-top: 10px; }
+.ab {
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  border: 1px solid;
+  transition: all .15s;
+  letter-spacing: 0px;
+}
+.ab-block   { border-color: var(--danger); color: var(--danger); background: transparent; }
+.ab-block:hover  { background: rgba(255,45,85,.15); }
+.ab-safe    { border-color: var(--success); color: var(--success); background: transparent; }
+.ab-safe:hover   { background: rgba(48,209,88,.1); }
+.ab-muted   { border-color: var(--border2); color: rgba(255,255,255,.35); background: transparent; }
+
+/* ═══ PROGRESS / ACCURACY BARS ═══ */
+.prog-stack { display: flex; flex-direction: column; gap: 14px; }
+.prog-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.prog-label { color: rgba(255,255,255,.4); }
+.prog-val   { font-weight: 700; color: #fff; }
+.prog-bar   { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.prog-fill  { height: 100%; border-radius: 4px; transition: width .8s ease; }
+
+/* ═══ FORM ELEMENTS ═══ */
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,.4);
+  letter-spacing: 1px;
+  margin-bottom: 7px;
+}
+.form-input, .form-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 13px;
+  transition: background .2s;
+  outline: none;
+}
+.form-input::placeholder { color: rgba(255,255,255,.25); }
+.form-input:focus, .form-select:focus {
+  background: var(--surface);
+}
+.form-select option { background: var(--surface); }
+textarea.form-input { resize: none; min-height: 80px; line-height: 1.55; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ═══ BUTTONS ═══ */
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .3px;
+  transition: opacity .2s, background .2s;
+  margin-top: 4px;
+}
+.btn-primary:hover {
+  background: var(--accent2);
+}
+.btn-primary:active { opacity: 0.9; }
+
+.btn-secondary {
+  padding: 9px 18px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: rgba(255,255,255,.6);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color .2s, border-color .2s;
+}
+.btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ═══ ANALYZER RESULT ═══ */
+.result-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 420px;
+  text-align: center;
+  gap: 14px;
+}
+.rp-icon  { font-size: 64px; opacity: .3; }
+.rp-title { font-size: 20px; font-weight: 700; color: rgba(255,255,255,.5); }
+.rp-text  { font-size: 13px; color: rgba(255,255,255,.25); max-width: 240px; line-height: 1.6; }
+
+.result-panel { display: flex; flex-direction: column; gap: 14px; }
+
+.score-showcase {
+  background: var(--surface);
+  border: none;
+  border-radius: 12px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+.score-dial {
+  width: 114px; height: 114px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid;
+  font-family: var(--font);
+  margin-bottom: 4px;
+  transition: border-color .3s;
+  position: relative;
+}
+.sd-high { border-color: var(--danger); color: var(--danger); }
+.sd-med  { border-color: var(--warn);   color: var(--warn); }
+.sd-low  { border-color: var(--success);color: var(--success); }
+.sd-num  { font-size: 36px; font-weight: 900; line-height: 1; }
+.sd-of   { font-family: var(--mono); font-size: 10px; opacity: .6; }
+.verdict      { font-size: 18px; font-weight: 800; }
+.verdict.high { color: var(--danger); }
+.verdict.med  { color: var(--warn); }
+.verdict.low  { color: var(--success); }
+.verdict-note { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.35); }
+
+.flags-box {
+  background: var(--surface);
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+}
+.flags-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,.3);
+  letter-spacing: 1.5px;
+  margin-bottom: 10px;
+}
+.flag-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.flag-item:last-child { border-bottom: none; }
+.flag-dot {
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.fd-danger  { background: rgba(255,45,85,.15); }
+.fd-warn    { background: rgba(255,159,10,.15); }
+.fd-success { background: rgba(48,209,88,.1); }
+.flag-text  { flex: 1; }
+.flag-head  { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.flag-body  { font-size: 11px; color: rgba(255,255,255,.35); line-height: 1.4; }
+
+.result-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ra-btn {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  transition: all .2s;
+}
+.ra-block { background: var(--danger); color: #fff; transition: opacity .2s; }
+.ra-block:hover { opacity: 0.9; }
+.ra-proceed { background: var(--surface2); color: var(--success); border: 1px solid rgba(48,209,88,.3); }
+.ra-proceed:hover { background: rgba(48,209,88,.1); }
+
+.rec-note {
+  background: rgba(0,232,181,.06);
+  border: 1px solid rgba(0,232,181,.15);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  font-size: 13px;
+  color: var(--accent);
+  line-height: 1.6;
+  margin-top: 2px;
+}
+
+/* ═══ SCAM CARDS ═══ */
+.scam-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.scam-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.scam-card:hover {
+  background: var(--surface2);
+  border-color: var(--border2);
+}
+.scam-body { padding: 18px; }
+.scam-icon { font-size: 34px; margin-bottom: 12px; }
+.scam-tag  {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.scam-title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+.scam-desc  { font-size: 12px; color: rgba(255,255,255,.4); line-height: 1.6; }
+.scam-foot  {
+  background: var(--surface2);
+  padding: 11px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+}
+.sf-label   { font-family: var(--mono); font-size: 9px; color: rgba(255,255,255,.3); }
+.sf-victims { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+
+/* Tips */
+.tips-list { display: flex; flex-direction: column; gap: 10px; }
+.tip-item  {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.tip-num {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.tip-head { font-weight: 700; font-size: 13px; color: #fff; margin-bottom: 3px; }
+.tip-body { font-size: 12px; color: rgba(255,255,255,.4); line-height: 1.5; }
+
+/* Quiz */
+.quiz-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.quiz-top  { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.quiz-score-pill {
+  font-family: var(--mono); font-size: 12px;
+  background: rgba(0,232,181,.1); color: var(--accent);
+  border: 1px solid rgba(0,232,181,.2);
+  padding: 5px 14px; border-radius: 20px;
+}
+.quiz-prog-bar { height: 3px; background: var(--border2); border-radius: 2px; margin-bottom: 18px; }
+.quiz-prog-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .5s ease; }
+.quiz-q    { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 16px; line-height: 1.5; }
+.quiz-opts { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+.quiz-opt  {
+  padding: 13px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border2);
+  cursor: pointer;
+  font-size: 14px;
+  background: var(--surface2);
+  color: rgba(255,255,255,.75);
+  transition: all .2s;
+}
+.quiz-opt:hover     { border-color: var(--accent); background: rgba(0,232,181,.05); color: #fff; }
+.quiz-opt.correct   { border-color: var(--success); background: rgba(48,209,88,.1); color: var(--success); font-weight: 700; }
+.quiz-opt.wrong     { border-color: var(--danger);  background: rgba(255,45,85,.1);  color: var(--danger);  font-weight: 700; }
+.quiz-explanation {
+  background: rgba(10,132,255,.1);
+  border: 1px solid rgba(10,132,255,.2);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 12px;
+  color: var(--accent2);
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.quiz-next-btn {
+  padding: 11px 22px;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity .2s, background .2s;
+}
+.quiz-next-btn:hover { background: var(--accent2); opacity: 0.95; }
+
+/* Dos & Don'ts */
+.dd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.dd-col  { background: var(--surface2); border-radius: var(--radius-sm); padding: 16px; border: 1px solid var(--border); }
+.dd-header { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1.5px; margin-bottom: 12px; }
+.dd-header.green { color: var(--success); }
+.dd-header.red   { color: var(--danger); }
+.dd-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: rgba(255,255,255,.5);
+  line-height: 1.5;
+}
+.dd-item:last-child { border-bottom: none; }
+.dd-icon { flex-shrink: 0; }
+
+/* ═══ COMPLAINTS ═══ */
+.complaint-list { display: flex; flex-direction: column; gap: 10px; }
+.complaint-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+.complaint-card:hover  { border-color: var(--border2); }
+.complaint-card.active { border-color: var(--accent); background: rgba(0,232,181,.04); }
+.cc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.cc-id   { font-family: var(--mono); font-size: 11px; color: var(--accent2); font-weight: 700; }
+.cc-type { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+.cc-amt  { font-family: var(--mono); font-size: 11px; color: var(--danger); }
+.cc-prog-outer { height: 3px; background: var(--border2); border-radius: 2px; margin-top: 9px; }
+.cc-prog-inner { height: 100%; border-radius: 2px; background: var(--accent); transition: width .8s ease; }
+
+/* Timeline */
+.timeline { display: flex; flex-direction: column; }
+.tl-step  { display: flex; gap: 14px; }
+.tl-spine { display: flex; flex-direction: column; align-items: center; }
+.tl-dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+.tl-done   { background: var(--success); border-color: var(--success); }
+.tl-active { background: var(--warn);    border-color: var(--warn); animation: tlPulse 1.5s infinite; }
+.tl-pend   { background: transparent;    border-color: var(--border2); }
+@keyframes tlPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,159,10,.5); }
+  50%     { box-shadow: 0 0 0 6px rgba(255,159,10,0); }
+}
+.tl-line { width: 2px; flex: 1; min-height: 22px; }
+.tl-line-done { background: var(--success); }
+.tl-line-pend { background: var(--border2); }
+.tl-content { padding-bottom: 22px; flex: 1; }
+.tl-title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.tl-date  { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.3); }
+
+/* ═══ STATISTICS ═══ */
+.bar-chart-wrap { display: flex; align-items: flex-end; gap: 10px; height: 130px; }
+.bar-col        { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.bar-body       { width: 100%; border-radius: 5px 5px 0 0; transition: height .8s ease; }
+.bar-val        { font-family: var(--mono); font-size: 10px; font-weight: 700; }
+.bar-label      { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.3); }
+
+.heatmap-grid { display: grid; grid-template-columns: repeat(12,1fr); gap: 5px; margin-bottom: 8px; }
+.hm-cell {
+  aspect-ratio: 1;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform .15s;
+}
+.hm-cell:hover { transform: scale(1.5); }
+.hm-0 { background: var(--border); }
+.hm-1 { background: rgba(10,132,255,.45); }
+.hm-2 { background: rgba(10,132,255,.75); }
+.hm-3 { background: rgba(255,159,10,.75); }
+.hm-4 { background: rgba(255,45,85,.85); }
+.hm-legend { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.3); }
+.hm-swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+.type-chart { display: flex; flex-direction: column; gap: 12px; }
+.tc-head { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; margin-bottom: 5px; }
+.tc-label { color: rgba(255,255,255,.55); }
+.tc-pct   { font-weight: 700; }
+.tc-track { height: 8px; background: var(--border2); border-radius: 4px; overflow: hidden; }
+.tc-fill  { height: 100%; border-radius: 4px; transition: width .8s ease; }
+
+/* ═══ PROCESS PAGE ═══ */
+.process-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.step-num {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.step-head { font-weight: 700; font-size: 14px; color: #fff; margin-bottom: 3px; }
+.step-body { font-size: 12px; color: rgba(255,255,255,.4); line-height: 1.55; }
+.step-day  { font-family: var(--mono); font-size: 9px; color: var(--accent); letter-spacing: 1px; margin-top: 5px; }
+
+.tech-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 11px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.tech-layer { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 1px; margin-bottom: 3px; }
+.tech-tools { font-size: 13px; font-weight: 700; color: #fff; }
+.tech-why   { font-size: 11px; color: rgba(255,255,255,.3); max-width: 150px; text-align: right; line-height: 1.4; }
+
+.arch-flow { display: flex; flex-direction: column; gap: 8px; }
+.arch-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.arch-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: rgba(0,232,181,.1);
+  border: 1px solid rgba(0,232,181,.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.arch-label { font-weight: 700; font-size: 13px; color: #fff; }
+.arch-desc  { font-size: 11px; color: rgba(255,255,255,.3); margin-top: 1px; }
+.arch-arrow { margin-left: auto; color: rgba(255,255,255,.2); font-size: 16px; }
+
+.hack-day-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.hack-day {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.hd-day   { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 1.5px; margin-bottom: 5px; }
+.hd-icon  { font-size: 26px; margin-bottom: 8px; }
+.hd-title { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+.hd-task  {
+  display: flex; align-items: flex-start;
+  gap: 7px; padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px; color: rgba(255,255,255,.5);
+}
+.hd-task:last-child { border-bottom: none; }
+.hd-arrow { color: var(--accent); flex-shrink: 0; }
+
+.issues-list { display: flex; flex-direction: column; gap: 8px; }
+.issue-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px; background: var(--surface2);
+  border-radius: 8px; border: 1px solid var(--border);
+  font-size: 13px; color: rgba(255,255,255,.55);
+}
+
+.win-list { display: flex; flex-direction: column; gap: 8px; }
+.win-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px; background: rgba(0,232,181,.04);
+  border: 1px solid rgba(0,232,181,.12);
+  border-radius: 8px; font-size: 13px; color: rgba(255,255,255,.6);
+}
+
+/* ═══ MODAL ═══ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(4,7,15,.85);
+  backdrop-filter: blur(10px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; animation: modalFade .15s ease; }
+@keyframes modalFade { from { opacity:0; } to { opacity:1; } }
+.modal-box {
+  background: var(--surface);
+  border: none;
+  border-radius: 14px;
+  padding: 26px;
+  width: 480px;
+  max-width: 95vw;
+  position: relative;
+  animation: modalPop .2s ease;
+}
+@keyframes modalPop {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);  opacity: 1; }
+}
+.modal-close {
+  position: absolute; top: 18px; right: 18px;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 14px; color: rgba(255,255,255,.4);
+  transition: all .2s;
+}
+.modal-close:hover { border-color: var(--danger); color: var(--danger); }
+.modal-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+.modal-id    { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.3); margin-bottom: 20px; }
+.modal-row   {
+  display: flex; justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.modal-row:last-of-type { border-bottom: none; }
+.modal-key { font-family: var(--mono); font-size: 10px; color: rgba(255,255,255,.3); }
+.modal-val { font-weight: 600; color: #fff; }
+.modal-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.mb-block { background: var(--danger); color: #fff; border: none; padding: 11px; border-radius: 10px; font-weight: 700; cursor: pointer; font-family: var(--font); font-size: 14px; transition: all .2s; }
+.mb-block:hover { box-shadow: var(--glow-danger); }
+.mb-close { background: var(--surface2); color: rgba(255,255,255,.6); border: 1px solid var(--border2); padding: 11px; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: var(--font); font-size: 14px; }
+
+/* ═══ TOAST ═══ */
+.toast-notif {
+  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+  min-width: 280px; padding: 14px 20px;
+  border-radius: 12px;
+  display: none;
+  align-items: center; gap: 10px;
+  font-size: 14px; font-weight: 600;
+  box-shadow: 0 8px 30px rgba(0,0,0,.5);
+}
+.toast-notif.show { display: flex; animation: toastSlide .3s ease; }
+@keyframes toastSlide {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+.toast-ok  { background: var(--success); color: var(--ink); }
+.toast-err { background: var(--danger);  color: #fff; }
+.toast-inf { background: var(--info);    color: #fff; }
+.toast-wrn { background: var(--warn);    color: var(--ink); }
+
+/* ═══ COMPACT STATS BOXES ═══ */
+.stat-boxes { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+.stat-box {
+  text-align: center;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid;
+}
+.sb-val   { font-size: 28px; font-weight: 900; font-family: var(--font); line-height: 1; }
+.sb-label { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; margin-top: 5px; }
+
+/* ═══ RESPONSIVE FIXES ═══ */
+@media (max-width: 900px) {
+  .metrics-row, .grid-2, .grid-3, .grid-1-2, .grid-2-1, .grid-form,
+  .scam-grid, .dd-grid, .process-grid, .hack-day-grid, .form-row { grid-template-columns: 1fr; }
+  .topbar { padding: 0 14px; }
+  .page { padding: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ LOADER ═══════════════ --
+<div class="loader" id="loader">
+  <div class="loader-shield">🛡️</div>
+  <div class="loader-title">UPI FRAUDSHIELD</div>
+  <div class="loader-sub">A WEB THAT PROTECTS UPI USERS</div>
+  <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+
+<!-- ═══════════════ TICKER ═══════════════ -->
+<div class="ticker-wrap">
+  <span class="ticker-label">⚠ FRAUD ALERT</span>
+  <div class="ticker-scroll">
+    <div class="ticker-content">
+      <span>🔴 NEVER share your UPI PIN — not even to bank officials, NPCI, or police</span>
+      <span>⚡ India reported 1.3 CRORE UPI fraud cases in 2023 — ₹1,087 crore lost</span>
+      <span>📸 Scanning a QR code SENDS money — never scan to "receive" payment</span>
+      <span>🎯 All "UPI KYC update" calls are SCAMS — block and report 1930</span>
+      <span>💡 Receiving money never needs your PIN, OTP, or QR scan</span>
+      <span>🚨 Fake collect requests rising 180% YoY — always verify the sender</span>
+      <span>📞 National Cyber Crime Helpline: 1930 — call within 24 hours</span>
+      <!-- Repeat for seamless loop -->
+      <span>🔴 NEVER share your UPI PIN — not even to bank officials, NPCI, or police</span>
+      <span>⚡ India reported 1.3 CRORE UPI fraud cases in 2023 — ₹1,087 crore lost</span>
+      <span>📸 Scanning a QR code SENDS money — never scan to "receive" payment</span>
+      <span>🎯 All "UPI KYC update" calls are SCAMS — block and report 1930</span>
+      <span>💡 Receiving money never needs your PIN, OTP, or QR scan</span>
+      <span>🚨 Fake collect requests rising 180% YoY — always verify the sender</span>
+      <span>📞 National Cyber Crime Helpline: 1930 — call within 24 hours</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TOPBAR ═══════════════ -->
+<nav class="topbar">
+  <div class="logo">
+    <div class="logo-icon">🛡️</div>
+    <div>
+      <div class="logo-text">UPI <span>FraudShield</span></div>
+    </div>
+  </div>
+
+  <div class="nav-pills" id="navPills">
+    <div class="nav-pill active" onclick="switchPage('dashboard', this)">📊 Dashboard</div>
+    <div class="nav-pill" onclick="switchPage('mlinterpret', this)">🔬 ML Interpretability</div>
+    <div class="nav-pill" onclick="switchPage('analyzer', this)">🔍 Risk Analyzer</div>
+    <div class="nav-pill" onclick="switchPage('voiceassistant', this)">🎙️ Voice Assistant</div>
+    <div class="nav-pill" onclick="switchPage('aianalysis', this)">📸 Receipt Analysis</div>
+    <div class="nav-pill" onclick="switchPage('awareness', this)">🎓 Awareness</div>
+    <div class="nav-pill" onclick="switchPage('complaints', this)">📋 Complaints</div>
+    <div class="nav-pill" onclick="switchPage('statistics', this)">📈 Statistics</div>
+  </div>
+
+  <div class="topbar-status">
+    <div class="status-dot"></div>
+    LIVE MONITORING
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGES CONTAINER
+═══════════════════════════════════════════════════════════════ -->
+<div class="pages-container">
+
+<!-- ══════════ PAGE: DASHBOARD ══════════ -->
+<div class="page active" id="page-dashboard">
+  <div class="sec-header">
+    <div class="sec-title">Fraud Detection <span class="hl">Dashboard</span></div>
+    <div class="sec-desc">REAL-TIME MONITORING · AI-POWERED RISK SCORING · VISAKHAPATNAM REGION</div>
+  </div>
+
+  <div class="metrics-row">
+    <div class="metric-card mc-danger">
+      <div class="metric-emoji">🚨</div>
+      <div class="metric-label">FRAUDS BLOCKED TODAY</div>
+      <div class="metric-value mv-danger" id="m1">23</div>
+      <div class="metric-trend trend-up">↑ 6 more than yesterday</div>
+    </div>
+    <div class="metric-card mc-warn">
+      <div class="metric-emoji">⚡</div>
+      <div class="metric-label">SUSPICIOUS FLAGGED</div>
+      <div class="metric-value mv-warn" id="m2">47</div>
+      <div class="metric-trend trend-up">↑ 12 more this week</div>
+    </div>
+    <div class="metric-card mc-success">
+      <div class="metric-emoji">💰</div>
+      <div class="metric-label">AMOUNT PROTECTED</div>
+      <div class="metric-value mv-success">₹6.8L</div>
+      <div class="metric-trend trend-down">↓ Saved this month</div>
+    </div>
+    <div class="metric-card mc-info">
+      <div class="metric-emoji">📡</div>
+      <div class="metric-label">TRANSACTIONS ANALYZED</div>
+      <div class="metric-value mv-info" id="m4">1,247</div>
+      <div class="metric-trend trend-flat">Updated just now</div>
+    </div>
+  </div>
+
+  <div class="grid-2-1">
+    <!-- Transaction Feed -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🔴 Live Transaction Feed</div>
+          <div class="card-subtitle">Click any row to view full AI risk breakdown</div>
+        </div>
+        <div class="chip chip-danger" id="flagBadge">3 FLAGGED</div>
+      </div>
+      <table class="data-table" id="txTable">
+        <thead><tr>
+          <th>SENDER / MERCHANT</th>
+          <th>AMOUNT</th>
+          <th>RISK SCORE</th>
+          <th>STATUS</th>
+          <th>TIME</th>
+        </tr></thead>
+        <tbody id="txBody"></tbody>
+      </table>
+    </div>
+
+   <!-- Alerts Panel -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">🚨 Active Alerts</div>
+    <div class="chip chip-danger">URGENT</div>
+  </div>
+
+  <div class="alert-stack" id="alertStack">
+
+    <!-- 1 -->
+    <div class="alert">
+      <h4>Account Takeover Attempt</h4>
+      <p>Login from unknown device detected.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'Account Takeover Attempt')">🚫 Block</button>
+        <button onclick="confirmUser(this,'Account Takeover Attempt')">✅ It's Me</button>
+      </div>
+    </div>
+
+    <!-- 2 -->
+    <div class="alert" style="border-left:4px solid var(--warning);">
+      <h4>High-Velocity Spending</h4>
+      <p>Multiple transactions detected in short time.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'High-Velocity Spending')">🚫 Block</button>
+        <button onclick="confirmUser(this,'High-Velocity Spending')">✅ It's Me</button>
+      </div>
+    </div>
+
+    <!-- 3 -->
+    <div class="alert" style="border-left:4px solid var(--blue);">
+      <h4>Collect Request Flood</h4>
+      <p>12 suspicious collect requests received.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'Collect Request Flood')">🚫 Block</button>
+        <button onclick="confirmUser(this,'Collect Request Flood')">✅ It's Me</button>
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="alert" style="border-left:4px solid red;">
+      <h4>Unusual Location Access</h4>
+      <p>Transaction attempt from a new geographic location.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'Unusual Location Access')">🚫 Block</button>
+        <button onclick="confirmUser(this,'Unusual Location Access')">✅ It's Me</button>
+      </div>
+    </div>
+
+    <!-- 5 -->
+    <div class="alert" style="border-left:4px solid orange;">
+      <h4>Large Transaction Alert</h4>
+      <p>Transaction above ₹50,000 detected.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'Large Transaction Alert')">🚫 Block</button>
+        <button onclick="confirmUser(this,'Large Transaction Alert')">✅ It's Me</button>
+      </div>
+    </div>
+
+    <!-- 6 -->
+    <div class="alert" style="border-left:4px solid purple;">
+      <h4>New Payee Added</h4>
+      <p>A new beneficiary was recently added to your account.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'New Payee Added')">🚫 Block</button>
+        <button onclick="confirmUser(this,'New Payee Added')">✅ It's Me</button>
+      </div>
+    </div>
+
+    <!-- 7 -->
+    <div class="alert" style="border-left:4px solid brown;">
+      <h4>Multiple Failed PIN Attempts</h4>
+      <p>Several incorrect UPI PIN attempts detected.</p>
+      <div class="alert-actions">
+        <button onclick="blockAlert(this,'Multiple Failed PIN Attempts')">🚫 Block</button>
+        <button onclick="confirmUser(this,'Multiple Failed PIN Attempts')">✅ It's Me</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.alert-actions{
+  margin-top:12px;
+  display:flex;
+  gap:10px;
+}
+
+.alert-actions button{
+  padding:8px 14px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+  font-weight:bold;
+}
+
+.alert-actions button:first-child{
+  background:#ff4d4d;
+  color:white;
+}
+
+.alert-actions button:last-child{
+  background:#00c853;
+  color:white;
+}
+</style>
+
+<script>
+function blockAlert(button, alertType){
+  let confirmBlock = confirm("Are you sure you want to BLOCK this activity?\n\nAlert: " + alertType);
+
+  if(confirmBlock){
+    alert("🚫 User Blocked Successfully.\nSecurity team notified.");
+    button.closest('.alert').remove();
+  }
+}
+
+function confirmUser(button, alertType){
+  alert("✅ Activity confirmed as YOU.\nNo further action required.\n\nAlert: " + alertType);
+  button.closest('.alert').remove();
+}
+</script>
+
+  <div class="grid-2 mt-18">
+    <!-- Model Accuracy -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">🤖 AI Model Performance</div>
+          <div class="card-subtitle">Ensemble of 3 models for maximum accuracy</div>
+        </div>
+        <div class="chip chip-accent">ACTIVE</div>
+      </div>
+      <div class="prog-stack" id="modelBars"></div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">📋 Complaint Summary</div></div>
+      <div class="stat-boxes" id="complaintStats"></div>
+    </div>
+  </div>
+
+  <!-- System Integration Status -->
+  <div class="card mt-18">
+    <div class="card-header">
+      <div class="card-title">🔌 Live System Integration Status</div>
+      <div class="chip chip-success" style="font-size:10px">ALL SYSTEMS OPERATIONAL</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px">
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">🏦</div>
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:6px">BANK APIs</div>
+        <div style="font-weight:700;font-size:13px;color:var(--success)">✅ Connected</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:3px">↓ 12ms latency</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">🚔</div>
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:6px">CYBERCRIME</div>
+        <div style="font-weight:700;font-size:13px;color:var(--success)">✅ Connected</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:3px">↓ 34ms latency</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">🌐</div>
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:6px">NPCI</div>
+        <div style="font-weight:700;font-size:13px;color:var(--success)">✅ Connected</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:3px">↓ 8ms latency</div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px;margin-bottom:6px">🧠</div>
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:6px">ML ENGINE</div>
+        <div style="font-weight:700;font-size:13px;color:var(--success)">✅ Ready</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:3px">↓ 145ms scoring</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Advanced Predictive Analytics -->
+  <div class="card mt-18">
+    <div class="card-header">
+      <div class="card-title">🏗️ Infrastructure & Pipeline Performance</div>
+      <div class="chip chip-accent" style="font-size:10px;background:rgba(0,232,181,.15)">PROD</div>
+    </div>
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <!-- Database Performance -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:8px">💾 DATABASE</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:9px;color:rgba(255,255,255,.4)">
+          <div style="display:flex;justify-content:space-between">
+            <span>Query P95</span>
+            <span style="color:var(--success)">15ms</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Connections</span>
+            <span style="color:var(--accent)">48/64 active</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Cache Hit Rate</span>
+            <span style="color:var(--accent2)">94.2%</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Replication Lag</span>
+            <span style="color:var(--success)">0.3ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Message Queue -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:8px">📬 MESSAGE QUEUE</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:9px;color:rgba(255,255,255,.4)">
+          <div style="display:flex;justify-content:space-between">
+            <span>Kafka Lag</span>
+            <span style="color:var(--success)">2.1 sec</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Throughput</span>
+            <span style="color:var(--accent)">125K/sec</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Backlog Size</span>
+            <span style="color:var(--accent2)">847 msgs</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Error Rate</span>
+            <span style="color:var(--success)">0.01%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ML Inference Pipeline -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:8px">🧠 ML PIPELINE</div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:9px;color:rgba(255,255,255,.4)">
+          <div style="display:flex;justify-content:space-between">
+            <span>Inference P99</span>
+            <span style="color:var(--warn)">285ms</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>GPU Utilization</span>
+            <span style="color:var(--accent)">72%</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>Batch Queue</span>
+            <span style="color:var(--accent2)">18 pending</span>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span>OOM Events</span>
+            <span style="color:var(--success)">0 (24h)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <!-- K-Means Clustering -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:8px">K-MEANS CLUSTERING (K=5)</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;height:24px">
+          <div style="flex:1;height:100%;background:rgba(48,209,88,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--success);font-weight:700">78%</div>
+          <div style="flex:0.3;height:100%;background:rgba(255,159,10,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--warn);font-weight:700">13%</div>
+          <div style="flex:0.15;height:100%;background:rgba(255,45,85,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--danger);font-weight:700">6%</div>
+          <div style="flex:0.08;height:100%;background:rgba(227,72,180,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#e348b4;font-weight:700">2%</div>
+          <div style="flex:0.04;height:100%;background:rgba(100,100,200,.3);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;color:#6464c8;font-weight:700">1%</div>
+        </div>
+        <div style="font-size:9px;color:rgba(255,255,255,.2);line-height:1.6">Silhouette Score: 0.687 • Davies-Bouldin Index: 1.24 • Within-cluster variance: 0.42</div>
+      </div>
+
+      <!-- Isolation Forest Score -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:8px">ISOLATION FOREST ANOMALY SCORES</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:8px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px;text-align:center;font-size:9px">
+            <div style="color:var(--accent);font-weight:700">-2.1σ</div>
+            <div style="color:rgba(255,255,255,.2);margin-top:2px">5 txns</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px;text-align:center;font-size:9px">
+            <div style="color:var(--accent);font-weight:700">-1.5σ</div>
+            <div style="color:rgba(255,255,255,.2);margin-top:2px">18 txns</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px;text-align:center;font-size:9px">
+            <div style="color:rgba(255,255,255,.5);font-weight:700">0σ</div>
+            <div style="color:rgba(255,255,255,.2);margin-top:2px">10,247 txns</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px;text-align:center;font-size:9px">
+            <div style="color:var(--warn);font-weight:700">+1.8σ</div>
+            <div style="color:rgba(255,255,255,.2);margin-top:2px">32 txns</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:6px;text-align:center;font-size:9px">
+            <div style="color:var(--danger);font-weight:700">+3.2σ</div>
+            <div style="color:rgba(255,255,255,.2);margin-top:2px">7 txns</div>
+          </div>
+        </div>
+        <div style="font-size:9px;color:rgba(255,255,255,.2)">Threshold: -1.8σ • Detection rate: 97.2%</div>
+      </div>
+    </div>
+
+    <!-- Time Series Decomposition -->
+    <div style="margin-top:12px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+      <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:10px">📈 TIME SERIES DECOMPOSITION (STL DECOMPOSITION)</div>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px">
+        <!-- Trend -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:120px;font-size:9px;color:rgba(255,255,255,.3)">Trend:</div>
+          <div style="flex:1;height:12px;background:var(--surface);border-radius:2px;overflow:hidden;position:relative">
+            <div style="position:absolute;width:100%;height:100%;display:flex;align-items:center">
+              <div style="width:15%;height:80%;background:rgba(0,232,181,.2)"></div>
+              <div style="width:20%;height:85%;background:rgba(0,232,181,.3)"></div>
+              <div style="width:25%;height:90%;background:rgba(0,232,181,.4)"></div>
+              <div style="width:20%;height:88%;background:rgba(0,232,181,.35)"></div>
+              <div style="width:20%;height:75%;background:rgba(0,232,181,.2)"></div>
+            </div>
+          </div>
+          <div style="width:60px;text-align:right;font-size:9px;color:rgba(255,255,255,.2)">+2.3% trend</div>
+        </div>
+        <!-- Seasonal -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:120px;font-size:9px;color:rgba(255,255,255,.3)">Seasonal:</div>
+          <div style="flex:1;height:12px;background:var(--surface);border-radius:2px;overflow:hidden;position:relative">
+            <div style="position:absolute;width:100%;height:100%;display:flex;align-items:center">
+              <div style="width:15%;height:40%;background:rgba(255,159,10,.2)"></div>
+              <div style="width:20%;height:70%;background:rgba(255,159,10,.4)"></div>
+              <div style="width:25%;height:50%;background:rgba(255,159,10,.3)"></div>
+              <div style="width:20%;height:80%;background:rgba(255,159,10,.5)"></div>
+              <div style="width:20%;height:30%;background:rgba(255,159,10,.15)"></div>
+            </div>
+          </div>
+          <div style="width:60px;text-align:right;font-size:9px;color:rgba(255,255,255,.2)">7d pattern</div>
+        </div>
+        <!-- Residual -->
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:120px;font-size:9px;color:rgba(255,255,255,.3)">Residual:</div>
+          <div style="flex:1;height:12px;background:var(--surface);border-radius:2px;overflow:hidden;position:relative">
+            <div style="position:absolute;width:100%;height:100%;display:flex;align-items:center">
+              <div style="width:15%;height:35%;background:rgba(255,45,85,.15)"></div>
+              <div style="width:20%;height:20%;background:rgba(255,45,85,.1)"></div>
+              <div style="width:25%;height:55%;background:rgba(255,45,85,.2)"></div>
+              <div style="width:20%;height:15%;background:rgba(255,45,85,.08)"></div>
+              <div style="width:20%;height:60%;background:rgba(255,45,85,.25)"></div>
+            </div>
+          </div>
+          <div style="width:60px;text-align:right;font-size:9px;color:rgba(255,255,255,.2)">1.3% noise</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: ML INTERPRETABILITY ══════════ -->
+<div class="page" id="page-mlinterpret">
+  <div class="sec-header">
+    <div class="sec-title">ML Model <span class="hl">Interpretability</span></div>
+    <div class="sec-desc">SHAP EXPLANATIONS · LIME · FEATURE IMPORTANCE · MODEL DRIFT · EXPLAINABLE AI</div>
+  </div>
+
+  <!-- Transaction-Level LIME Explanations -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">🔍 LIME: Local Transaction Explanations (Instance-Level)</div>
+      <div class="chip chip-accent">EXPLAINABLE AI</div>
+    </div>
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Transaction 1: Flagged -->
+      <div style="background:linear-gradient(135deg,rgba(255,45,85,.08) 0%,rgba(255,45,85,.02) 100%);border:1px solid rgba(255,45,85,.2);border-radius:8px;padding:12px">
+        <div style="font-weight:700;font-size:12px;color:var(--danger);margin-bottom:8px">⚠️ Transaction #2847-HIGH-RISK</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:10px">PayPal Money → Unknown Merchant | ₹94,500 | 2:47 AM</div>
+        
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Amount ₹94,500:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:85%;height:100%;background:var(--danger)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--danger);font-weight:700">+0.38</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Hour (2 AM):</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:72%;height:100%;background:var(--warn)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--warn);font-weight:700">+0.24</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">New Merchant:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:48%;height:100%;background:var(--accent2)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--accent2);font-weight:700">+0.19</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Velocity (3 txn/h):</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:62%;height:100%;background:#d4a500"></div>
+            </div>
+            <span style="font-size:9px;color:#d4a500;font-weight:700">+0.21</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Device Mismatch:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:35%;height:100%;background:rgba(0,232,181,.4)"></div>
+            </div>
+            <span style="font-size:9px;color:rgba(0,232,181,.8)">-0.08</span>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:9px;color:rgba(255,255,255,.3)">
+          <strong style="color:rgba(255,255,255,.5)">Recommendation:</strong> BLOCK transaction • Appeal case for manual review
+        </div>
+      </div>
+
+      <!-- Transaction 2: Safe -->
+      <div style="background:linear-gradient(135deg,rgba(48,209,88,.08) 0%,rgba(48,209,88,.02) 100%);border:1px solid rgba(48,209,88,.2);border-radius:8px;padding:12px">
+        <div style="font-weight:700;font-size:12px;color:var(--success);margin-bottom:8px">✅ Transaction #2846-APPROVED</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:10px">Starbucks Coffee → Verified Merchant | ₹850 | 9:15 AM</div>
+        
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Amount ₹850:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:15%;height:100%;background:var(--success)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--success);font-weight:700">-0.18</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Hour (9 AM):</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:8%;height:100%;background:var(--success)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--success);font-weight:700">-0.22</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Recurring Contact:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:5%;height:100%;background:var(--success)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--success);font-weight:700">-0.32</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Device Match:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:3%;height:100%;background:var(--success)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--success);font-weight:700">-0.28</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:10px;color:rgba(255,255,255,.4)">Historical Pattern Match:</span>
+            <div style="flex:1;margin:0 8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:2%;height:100%;background:var(--success)"></div>
+            </div>
+            <span style="font-size:9px;color:var(--success);font-weight:700">-0.15</span>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:9px;color:rgba(255,255,255,.3)">
+          <strong style="color:rgba(255,255,255,.5)">Confidence:</strong> 98.7% • Processed automatically
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fairness & Bias Detection -->
+  <div class="card mt-18">
+    <div class="card-header">
+      <div class="card-title">⚖️ Model Fairness & Bias Detection (Responsible AI)</div>
+      <div class="chip chip-accent" style="font-size:10px;background:rgba(0,232,181,.15)">AUDIT</div>
+    </div>
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <!-- Demographic Parity -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:10px">📊 DEMOGRAPHIC PARITY CHECK</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:rgba(255,255,255,.4)">Male Users Flagged</span>
+              <span style="font-size:10px;color:rgba(255,255,255,.5)">8.3%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:8.3%;height:100%;background:rgba(255,159,10,.4)"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:rgba(255,255,255,.4)">Female Users Flagged</span>
+              <span style="font-size:10px;color:rgba(255,255,255,.5)">8.1%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:8.1%;height:100%;background:rgba(255,159,10,.4)"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:rgba(255,255,255,.4)">Other</span>
+              <span style="font-size:10px;color:rgba(255,255,255,.5)">7.9%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:7.9%;height:100%;background:rgba(255,159,10,.4)"></div>
+            </div>
+          </div>
+          <div style="margin-top:6px;padding:8px;background:rgba(48,209,88,.1);border:1px solid rgba(48,209,88,.2);border-radius:6px;font-size:9px;color:var(--success)">
+            ✓ Fairness Metric: Maximum Difference = 0.4% (acceptable < 5%)
+          </div>
+        </div>
+      </div>
+
+      <!-- Equalized Odds -->
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3);letter-spacing:1px;margin-bottom:10px">🎯 EQUALIZED ODDS (TPR PARITY)</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:rgba(255,255,255,.4)">Age 18–30 (True Positive Rate)</span>
+              <span style="font-size:10px;color:rgba(255,255,255,.5)">89.2%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:89.2%;height:100%;background:var(--accent2)"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:rgba(255,255,255,.4)">Age 31–60</span>
+              <span style="font-size:10px;color:rgba(255,255,255,.5)">91.8%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:91.8%;height:100%;background:var(--accent2)"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+              <span style="font-size:10px;color:rgba(255,255,255,.4)">Age 60+</span>
+              <span style="font-size:10px;color:rgba(255,255,255,.5)">87.5%</span>
+            </div>
+            <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+              <div style="width:87.5%;height:100%;background:var(--accent2)"></div>
+            </div>
+          </div>
+          <div style="margin-top:6px;padding:8px;background:rgba(48,209,88,.1);border:1px solid rgba(48,209,88,.2);border-radius:6px;font-size:9px;color:var(--success)">
+            ✓ TPR Difference: 4.3% (acceptable)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ensemble Model Architecture -->
+  <div class="card mt-18">
+    <div class="card-header">
+      <div class="card-title">🧠 Ensemble Model Architecture & Hyperparameters</div>
+      <div class="chip chip-accent">PRODUCTION v2.4</div>
+    </div>
+    <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <!-- Model 1: Gradient Boosting -->
+      <div style="background:linear-gradient(135deg,rgba(255,159,10,.08) 0%,rgba(255,159,10,.02) 100%);border:1px solid rgba(255,159,10,.2);border-radius:8px;padding:12px">
+        <div style="font-weight:700;font-size:12px;color:var(--warn);margin-bottom:8px">1️⃣ XGBoost Classifier</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;color:rgba(255,255,255,.4)">
+          <div style="display:flex;justify-content:space-between">
+            <span>max_depth</span>
+            <span style="color:var(--warn);font-weight:700">8</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: RISK ANALYZER ══════════ -->
+<div class="page" id="page-analyzer">
+  <div class="sec-header">
+    <div class="sec-title">Risk <span class="hl">Analyzer</span></div>
+  </div>
+
+  <div class="analyzer-container">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+      <h3>Transaction Details</h3>
+
+      <form id="riskForm">
+        <input type="text" id="senderUpi" placeholder="Sender UPI ID" required>
+        <input type="text" id="receiverUpi" placeholder="Receiver UPI ID" required>
+        <input type="number" id="amount" placeholder="Amount (₹)" required>
+        <input type="time" id="txnTime" required>
+
+        <select id="txnType" required>
+          <option value="">Transaction Type</option>
+          <option value="p2p">P2P Transfer</option>
+          <option value="merchant">Merchant Payment</option>
+          <option value="bill">Bill Payment</option>
+          <option value="international">International</option>
+        </select>
+
+        <select id="locationRisk" required>
+          <option value="">Your Location</option>
+          <option value="safe">Known Location</option>
+          <option value="new">New Location</option>
+          <option value="vpn">VPN / Suspicious</option>
+        </select>
+
+        <button type="submit" class="analyze-btn">
+          🔍 Analyze Now
+        </button>
+      </form>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+      <div class="magnifier">🔎</div>
+
+      <div class="result-box">
+        <h2 id="riskLevel">Awaiting Analysis...</h2>
+
+        <div class="progress">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <p id="riskScore"></p>
+        <div class="reason" id="riskReason"></div>
+        <div class="recommend" id="recommendation"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.analyzer-container{
+  display:flex;
+  gap:30px;
+  margin-top:20px;
+}
+
+.left-panel{
+  flex:1;
+  background:linear-gradient(145deg,#0f172a,#1e293b);
+  padding:25px;
+  border-radius:20px;
+  box-shadow:0 15px 40px rgba(0,0,0,.4);
+}
+
+.left-panel h3{
+  margin-bottom:15px;
+  color:#00f5a0;
+}
+
+.left-panel input,
+.left-panel select{
+  width:100%;
+  margin-bottom:12px;
+  padding:12px;
+  border-radius:10px;
+  border:1px solid #334155;
+  background:#0f172a;
+  color:white;
+}
+
+.analyze-btn{
+  margin-top:10px;
+  padding:14px;
+  border:none;
+  border-radius:40px;
+  font-weight:700;
+  font-size:16px;
+  cursor:pointer;
+  background:linear-gradient(90deg,#00f5a0,#00d9f5);
+  color:#111;
+  transition:.3s;
+}
+.analyze-btn:hover{
+  transform:scale(1.05);
+}
+
+.right-panel{
+  flex:1;
+  background:linear-gradient(145deg,#1e293b,#0f172a);
+  padding:25px;
+  border-radius:20px;
+  box-shadow:0 15px 40px rgba(0,0,0,.4);
+  text-align:center;
+  position:relative;
+}
+
+.magnifier{
+  font-size:100px;
+  opacity:.08;
+  position:absolute;
+  top:20px;
+  right:20px;
+}
+
+.result-box{
+  margin-top:120px;
+}
+
+#riskLevel{
+  font-size:28px;
+  margin-bottom:10px;
+}
+
+.progress{
+  height:20px;
+  background:#1e293b;
+  border-radius:20px;
+  overflow:hidden;
+  margin:15px 0;
+}
+
+.progress-bar{
+  height:100%;
+  width:0%;
+  transition:1s;
+}
+
+.reason{
+  margin-top:10px;
+  font-size:14px;
+}
+
+.recommend{
+  margin-top:15px;
+  font-weight:700;
+  font-size:18px;
+}
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+
+  const form = document.getElementById("riskForm");
+
+  form.addEventListener("submit", function(event){
+
+    event.preventDefault();
+
+    const amount = parseFloat(document.getElementById("amount").value);
+    const txnType = document.getElementById("txnType").value;
+    const locationRisk = document.getElementById("locationRisk").value;
+    const time = document.getElementById("txnTime").value;
+
+    let score = 0;
+    let reasons = [];
+
+    if(amount > 50000){
+      score += 40;
+      reasons.push("High transaction amount");
+    }
+    else if(amount > 20000){
+      score += 25;
+      reasons.push("Medium transaction amount");
+    }
+    else{
+      score += 10;
+    }
+
+    if(txnType === "international"){
+      score += 30;
+      reasons.push("International transaction");
+    }
+
+    if(locationRisk === "vpn"){
+      score += 40;
+      reasons.push("Suspicious VPN location");
+    }
+    else if(locationRisk === "new"){
+      score += 20;
+      reasons.push("New login location");
+    }
+
+    const hour = parseInt(time.split(":")[0]);
+    if(hour < 6 || hour > 22){
+      score += 20;
+      reasons.push("Unusual transaction time");
+    }
+
+    score = Math.min(score,100);
+
+    const riskLevel = document.getElementById("riskLevel");
+    const riskScore = document.getElementById("riskScore");
+    const progressBar = document.getElementById("progressBar");
+    const riskReason = document.getElementById("riskReason");
+    const recommendation = document.getElementById("recommendation");
+
+    progressBar.style.width = score + "%";
+
+    if(score < 40){
+      riskLevel.innerHTML = "🟢 Low Risk";
+      riskLevel.style.color = "#22c55e";
+      progressBar.style.background = "#22c55e";
+      recommendation.innerHTML = "✅ Safe to Proceed";
+      recommendation.style.color = "#22c55e";
+    }
+    else if(score < 75){
+      riskLevel.innerHTML = "🟠 Medium Risk";
+      riskLevel.style.color = "#f97316";
+      progressBar.style.background = "#f97316";
+      recommendation.innerHTML = "⚠️ Verify Before Proceeding";
+      recommendation.style.color = "#f97316";
+    }
+    else{
+      riskLevel.innerHTML = "🔴 High Risk";
+      riskLevel.style.color = "#ef4444";
+      progressBar.style.background = "#ef4444";
+      recommendation.innerHTML = "❌ Transaction Not Recommended";
+      recommendation.style.color = "#ef4444";
+    }
+
+    riskScore.innerHTML = "Risk Score: " + score + "%";
+    riskReason.innerHTML = reasons.length
+      ? "Reasons: " + reasons.join(", ")
+      : "No major risk factors detected.";
+
+  });
+
+});
+</script>
+
+<!-- ══════════ PAGE: VOICE ASSISTANT ══════════ -->
+<div class="page" id="page-voiceassistant">
+  <div class="sec-header">
+    <div class="sec-title">Voice <span class="hl">Assistant</span></div>
+  </div>
+
+  <div class="card modern-card">
+    <div class="card-title">Fraud Report Interface</div>
+
+    <!-- Language Selector -->
+    <select id="languageSelect" class="lang-select">
+      <option value="en-IN">English</option>
+      <option value="te-IN">తెలుగు (Telugu)</option>
+      <option value="hi-IN">हिंदी (Hindi)</option>
+      <option value="ta-IN">தமிழ் (Tamil)</option>
+      <option value="kn-IN">ಕನ್ನಡ (Kannada)</option>
+      <option value="ml-IN">മലയാളം (Malayalam)</option>
+    </select>
+
+    <!-- Start Button -->
+    <button onclick="startVoice()" class="voice-btn">
+      🎤 Start Speaking
+    </button>
+
+    <!-- Listening Box -->
+    <div id="voiceBox" class="listening-box">
+      <div class="wave"></div>
+      <div class="wave"></div>
+      <div class="wave"></div>
+      <p>Listening...</p>
+    </div>
+
+    <!-- Captured Box -->
+    <div id="capturedBox" class="captured-box">
+      <strong>Captured Report:</strong>
+      <div id="voiceOutput"></div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+.modern-card{
+  padding:20px;
+  border-radius:16px;
+  background: linear-gradient(135deg,#1f2937,#111827);
+  box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  color:white;
+}
+
+.lang-select{
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  margin-top:10px;
+  border:none;
+  font-weight:600;
+}
+
+.voice-btn{
+  width:100%;
+  padding:14px;
+  margin-top:15px;
+  border:none;
+  border-radius:30px;
+  font-weight:700;
+  font-size:15px;
+  background:linear-gradient(90deg,#00f5a0,#00d9f5);
+  color:#111;
+  cursor:pointer;
+  transition:0.3s;
+}
+.voice-btn:hover{
+  transform:scale(1.05);
+}
+
+.listening-box{
+  display:none;
+  margin-top:20px;
+  padding:15px;
+  border-radius:12px;
+  background:#0f172a;
+  text-align:center;
+}
+
+.wave{
+  display:inline-block;
+  width:6px;
+  height:20px;
+  margin:0 3px;
+  background:#00f5a0;
+  animation:wave 1s infinite ease-in-out;
+}
+.wave:nth-child(2){animation-delay:0.2s;}
+.wave:nth-child(3){animation-delay:0.4s;}
+
+@keyframes wave{
+  0%,100%{transform:scaleY(1);}
+  50%{transform:scaleY(2);}
+}
+
+.captured-box{
+  display:none;
+  margin-top:20px;
+  padding:15px;
+  border-radius:12px;
+  background:#1e293b;
+}
+#voiceOutput{
+  margin-top:8px;
+  font-size:14px;
+}
+</style>
+
+<script>
+function startVoice() {
+
+  const voiceBox = document.getElementById("voiceBox");
+  const capturedBox = document.getElementById("capturedBox");
+  const output = document.getElementById("voiceOutput");
+  const selectedLang = document.getElementById("languageSelect").value;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert("Speech Recognition not supported in this browser.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = selectedLang;
+  recognition.interimResults = false;
+  recognition.continuous = false;
+
+  voiceBox.style.display = "block";
+  capturedBox.style.display = "none";
+  output.innerHTML = "";
+
+  recognition.start();
+
+  recognition.onresult = function(event) {
+    const transcript = event.results[0][0].transcript;
+
+    voiceBox.style.display = "none";
+    capturedBox.style.display = "block";
+    output.innerHTML = transcript;
+  };
+
+  recognition.onerror = function(event) {
+    voiceBox.style.display = "none";
+    alert("Error: " + event.error);
+  };
+
+  recognition.onend = function() {
+    voiceBox.style.display = "none";
+  };
+}
+</script>
+<!-- ══════════ PAGE: RECEIPT ANALYSIS ══════════ -->
+<div class="page" id="page-aianalysis">
+  <div class="sec-header">
+    <div class="sec-title">Receipt <span class="hl">Analysis</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Upload Receipt for OCR Verification</div>
+    <input type="file" accept="image/*" onchange="analyzeReceipt(event)" style="margin-top:14px">
+    <div id="receiptBox" style="display:none;margin-top:14px;padding:12px;background:rgba(48,209,88,.1);border:1px solid rgba(48,209,88,.2);border-radius:6px;color:var(--success)">
+      ✓ Receipt verified successfully
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAGE: AWARENESS ══════════ -->
+<div class="page" id="page-awareness">
+
+  <div class="sec-header">
+    <div class="sec-title">🛡 Fraud <span class="hl">Awareness Center</span></div>
+  </div>
+
+  <!-- ALERT BANNER -->
+  <div class="alert-banner">
+    🚨 If you suspect fraud, call <strong>1930</strong> immediately or report at 
+    <strong>cybercrime.gov.in</strong>
+  </div>
+
+  <!-- FRAUD TYPES SECTION -->
+  <div class="awareness-grid">
+
+    <div class="aw-card danger">
+      <div class="aw-icon">📩</div>
+      <h3>Phishing Attacks</h3>
+      <p>Fraudsters send fake SMS or emails pretending to be banks and steal login details.</p>
+      <div class="risk-level high">High Risk</div>
+    </div>
+
+    <div class="aw-card danger">
+      <div class="aw-icon">🔳</div>
+      <h3>QR Code Scams</h3>
+      <p>Scanning QR to receive money actually sends money from your account.</p>
+      <div class="risk-level high">High Risk</div>
+    </div>
+
+    <div class="aw-card warning">
+      <div class="aw-icon">💳</div>
+      <h3>Card Skimming</h3>
+      <p>Hidden devices in ATMs copy your card data secretly.</p>
+      <div class="risk-level medium">Medium Risk</div>
+    </div>
+
+    <div class="aw-card warning">
+      <div class="aw-icon">📞</div>
+      <h3>OTP / PIN Fraud</h3>
+      <p>Scammers call pretending to be officials and ask for OTP or UPI PIN.</p>
+      <div class="risk-level high">High Risk</div>
+    </div>
+
+  </div>
+
+
+  <!-- SAFETY TIPS SECTION -->
+  <div class="tips-section">
+
+    <h2>🔐 Smart Safety Tips</h2>
+
+    <div class="tips-grid">
+      <div class="tip-card">
+        🔒 Never share your UPI PIN or OTP with anyone.
+      </div>
+
+      <div class="tip-card">
+        🛑 Block suspicious numbers immediately.
+      </div>
+
+      <div class="tip-card">
+        ✅ Always verify merchant name before payment.
+      </div>
+
+      <div class="tip-card">
+        📲 Enable transaction alerts in banking app.
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+
+<style>
+
+/* ALERT BANNER */
+.alert-banner{
+  background:linear-gradient(90deg,#ff4d4d,#ff0000);
+  padding:12px;
+  border-radius:10px;
+  font-size:14px;
+  margin-bottom:20px;
+  text-align:center;
+  font-weight:bold;
+  box-shadow:0 0 15px rgba(255,0,0,0.4);
+}
+
+/* GRID */
+.awareness-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:18px;
+  margin-bottom:30px;
+}
+
+/* CARD STYLE */
+.aw-card{
+  background:linear-gradient(135deg,#1f2937,#111827);
+  padding:20px;
+  border-radius:16px;
+  transition:0.3s;
+  box-shadow:0 5px 20px rgba(0,0,0,0.4);
+  position:relative;
+  overflow:hidden;
+}
+
+.aw-card:hover{
+  transform:translateY(-6px);
+  box-shadow:0 10px 30px rgba(0,255,255,0.3);
+}
+
+.aw-icon{
+  font-size:30px;
+  margin-bottom:10px;
+}
+
+.aw-card h3{
+  margin:5px 0;
+}
+
+.aw-card p{
+  font-size:13px;
+  color:rgba(255,255,255,0.6);
+}
+
+.risk-level{
+  position:absolute;
+  top:15px;
+  right:15px;
+  font-size:11px;
+  padding:4px 8px;
+  border-radius:20px;
+  font-weight:bold;
+}
+
+.high{
+  background:#ff4d4d;
+  color:white;
+}
+
+.medium{
+  background:#ff9800;
+  color:white;
+}
+
+/* TIPS SECTION */
+.tips-section h2{
+  margin-bottom:15px;
+}
+
+.tips-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:15px;
+}
+
+.tip-card{
+  background:#0f172a;
+  padding:15px;
+  border-radius:12px;
+  font-size:13px;
+  transition:0.3s;
+  border:1px solid rgba(0,255,255,0.1);
+}
+
+.tip-card:hover{
+  background:#111827;
+  transform:scale(1.05);
+  box-shadow:0 0 15px rgba(0,255,255,0.3);
+}
+
+</style>
+<!-- ══════════ PAGE: COMPLAINTS ══════════ -->
+<div class="page" id="page-complaints">
+
+  <div class="sec-header">
+    <div class="sec-title">🚨 Fraud <span class="hl">Complaint Center</span></div>
+  </div>
+
+  <!-- PROGRESS STEPS -->
+  <div class="complaint-steps">
+    <div class="step active">1. Details</div>
+    <div class="step">2. Review</div>
+    <div class="step">3. Submitted</div>
+  </div>
+
+  <div class="complaint-card">
+
+    <div class="card-title">📝 Lodge a Complaint</div>
+
+    <form onsubmit="submitComplaint(event)" class="complaint-form">
+
+      <!-- FRAUD TYPE -->
+      <div class="input-group">
+        <label>Fraud Type</label>
+        <select id="fraudType" required>
+          <option value="">Select Type</option>
+          <option>Unauthorized Transaction</option>
+          <option>Phishing</option>
+          <option>QR Code Scam</option>
+          <option>Duplicate Charge</option>
+          <option>UPI / OTP Fraud</option>
+        </select>
+      </div>
+
+      <!-- TRANSACTION ID -->
+      <div class="input-group">
+        <label>Transaction ID (if any)</label>
+        <input type="text" id="txnId" placeholder="Enter Transaction ID">
+      </div>
+
+      <!-- AMOUNT -->
+      <div class="input-group">
+        <label>Amount Lost (₹)</label>
+        <input type="number" id="amountLost" placeholder="Enter Amount">
+      </div>
+
+      <!-- INCIDENT DATE -->
+      <div class="input-group">
+        <label>Date of Incident</label>
+        <input type="date" id="incidentDate" required>
+      </div>
+
+      <!-- DETAILS -->
+      <div class="input-group">
+        <label>Describe the Incident</label>
+        <textarea id="details" placeholder="Explain what happened..." required></textarea>
+      </div>
+
+      <!-- FILE UPLOAD -->
+      <div class="input-group">
+        <label>Upload Screenshot (optional)</label>
+        <input type="file">
+      </div>
+
+      <button type="submit" class="submit-btn">
+        🚀 Submit Complaint
+      </button>
+
+    </form>
+  </div>
+
+  <!-- SUCCESS BOX -->
+  <div id="complaintSuccess" class="success-box">
+    <h3>✅ Complaint Submitted Successfully!</h3>
+    <p>Your Complaint ID:</p>
+    <div id="complaintId" class="complaint-id"></div>
+    <p style="margin-top:10px;">Our team will contact you soon.</p>
+  </div>
+
+</div>
+
+
+<style>
+
+/* STEPS */
+.complaint-steps{
+  display:flex;
+  justify-content:center;
+  gap:15px;
+  margin-bottom:20px;
+}
+
+.step{
+  padding:6px 14px;
+  border-radius:20px;
+  font-size:12px;
+  background:#1f2937;
+  color:rgba(255,255,255,0.5);
+}
+
+.step.active{
+  background:linear-gradient(90deg,#00f5a0,#00d9f5);
+  color:#111;
+  font-weight:bold;
+}
+
+/* CARD */
+.complaint-card{
+  background:linear-gradient(135deg,#1f2937,#111827);
+  padding:25px;
+  border-radius:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,0.5);
+  max-width:600px;
+  margin:auto;
+}
+
+/* FORM */
+.complaint-form{
+  margin-top:15px;
+}
+
+.input-group{
+  margin-bottom:15px;
+  display:flex;
+  flex-direction:column;
+}
+
+.input-group label{
+  font-size:13px;
+  margin-bottom:6px;
+  color:rgba(255,255,255,0.7);
+}
+
+.input-group input,
+.input-group select,
+.input-group textarea{
+  padding:10px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,0.1);
+  background:#0f172a;
+  color:white;
+  transition:0.3s;
+}
+
+.input-group textarea{
+  min-height:100px;
+  resize:none;
+}
+
+.input-group input:focus,
+.input-group select:focus,
+.input-group textarea:focus{
+  outline:none;
+  border:1px solid #00f5a0;
+  box-shadow:0 0 10px rgba(0,245,160,0.5);
+}
+
+/* BUTTON */
+.submit-btn{
+  width:100%;
+  padding:14px;
+  border:none;
+  border-radius:30px;
+  background:linear-gradient(90deg,#00f5a0,#00d9f5);
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+.submit-btn:hover{
+  transform:scale(1.05);
+}
+
+/* SUCCESS BOX */
+.success-box{
+  display:none;
+  margin-top:30px;
+  text-align:center;
+  padding:20px;
+  background:#0f172a;
+  border-radius:15px;
+  box-shadow:0 0 20px rgba(0,255,255,0.3);
+}
+
+.complaint-id{
+  font-size:18px;
+  font-weight:bold;
+  margin-top:8px;
+  color:#00f5a0;
+}
+
+</style>
+
+
+<script>
+
+function submitComplaint(e){
+  e.preventDefault();
+
+  // Generate Complaint ID
+  const complaintId = "FRD" + Math.floor(100000 + Math.random() * 900000);
+
+  document.getElementById("complaintId").innerText = complaintId;
+
+  document.querySelector(".complaint-card").style.display = "none";
+  document.getElementById("complaintSuccess").style.display = "block";
+
+  // Update steps
+  document.querySelectorAll(".step").forEach(step => step.classList.remove("active"));
+  document.querySelectorAll(".step")[2].classList.add("active");
+}
+
+</script>
+
+<!-- ══════════ PAGE: STATISTICS ══════════ -->
+<div class="page" id="page-statistics">
+
+  <div class="sec-header">
+    <div class="sec-title">Statistics & <span class="hl">Reports</span></div>
+  </div>
+
+  <!-- ================= SUMMARY CARDS ================= -->
+  <div class="stats-top-grid">
+
+    <div class="summary-card">
+      <h2>98.6%</h2>
+      <p>Card Fraud Detection</p>
+      <span class="positive">↑ +1.4% Improvement</span>
+    </div>
+
+    <div class="summary-card">
+      <h2>97.3%</h2>
+      <p>UPI Fraud Detection</p>
+      <span class="positive">↑ +2.1% Improvement</span>
+    </div>
+
+    <div class="summary-card">
+      <h2>95.8%</h2>
+      <p>Phishing Detection</p>
+      <span class="positive">↑ +1.8% Improvement</span>
+    </div>
+
+    <div class="summary-card">
+      <h2>93.4%</h2>
+      <p>QR Scam Detection</p>
+      <span class="positive">↑ +3.2% Improvement</span>
+    </div>
+
+    <div class="summary-card">
+      <h2>₹4.8 Cr</h2>
+      <p>Fraud Amount Prevented</p>
+      <span class="positive">↑ This Quarter</span>
+    </div>
+
+  </div>
+
+
+  <!-- ================= LINE GRAPH SECTION ================= -->
+  <div class="chart-card">
+
+    <div class="card-title">Fraud Detection Accuracy Trend (Jan - Jul 2026)</div>
+
+    <svg viewBox="0 0 720 420" class="line-chart">
+
+      <!-- AXES -->
+      <line x1="60" y1="20" x2="60" y2="360" class="axis"/>
+      <line x1="60" y1="360" x2="700" y2="360" class="axis"/>
+
+      <!-- Y Labels -->
+      <text x="20" y="360" class="label">0%</text>
+      <text x="15" y="300" class="label">20%</text>
+      <text x="15" y="240" class="label">40%</text>
+      <text x="15" y="180" class="label">60%</text>
+      <text x="15" y="120" class="label">80%</text>
+      <text x="10" y="60" class="label">100%</text>
+
+      <!-- X Labels -->
+      <text x="90" y="390" class="label">Jan</text>
+      <text x="180" y="390" class="label">Feb</text>
+      <text x="270" y="390" class="label">Mar</text>
+      <text x="360" y="390" class="label">Apr</text>
+      <text x="450" y="390" class="label">May</text>
+      <text x="540" y="390" class="label">Jun</text>
+      <text x="630" y="390" class="label">Jul</text>
+
+      <!-- GRID -->
+      <line x1="60" y1="300" x2="700" y2="300" class="grid"/>
+      <line x1="60" y1="240" x2="700" y2="240" class="grid"/>
+      <line x1="60" y1="180" x2="700" y2="180" class="grid"/>
+      <line x1="60" y1="120" x2="700" y2="120" class="grid"/>
+      <line x1="60" y1="60" x2="700" y2="60" class="grid"/>
+
+      <!-- CARD FRAUD -->
+      <polyline fill="none" stroke="#00f5a0" stroke-width="4"
+        points="90,140 180,130 270,120 360,110 450,100 540,90 630,80"
+        class="line-animate"/>
+
+      <!-- UPI FRAUD -->
+      <polyline fill="none" stroke="#00d9f5" stroke-width="4"
+        points="90,160 180,150 270,145 360,135 450,125 540,115 630,105"
+        class="line-animate"/>
+
+      <!-- PHISHING -->
+      <polyline fill="none" stroke="#ff9800" stroke-width="4"
+        points="90,200 180,190 270,180 360,170 450,160 540,150 630,140"
+        class="line-animate"/>
+
+    </svg>
+
+    <div class="legend">
+      <span><span class="dot green"></span> Card Fraud</span>
+      <span><span class="dot blue"></span> UPI Fraud</span>
+      <span><span class="dot orange"></span> Phishing</span>
+    </div>
+
+  </div>
+
+</div>
+
+
+<style>
+
+/* SUMMARY GRID */
+.stats-top-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:18px;
+  margin-bottom:30px;
+}
+
+.summary-card{
+  background:linear-gradient(135deg,#1f2937,#111827);
+  padding:20px;
+  border-radius:16px;
+  box-shadow:0 10px 25px rgba(0,0,0,0.5);
+  transition:0.3s;
+  text-align:center;
+}
+
+.summary-card:hover{
+  transform:translateY(-6px);
+  box-shadow:0 0 25px rgba(0,255,255,0.4);
+}
+
+.summary-card h2{
+  margin:0;
+  font-size:22px;
+}
+
+.summary-card p{
+  font-size:13px;
+  color:rgba(255,255,255,0.6);
+}
+
+.positive{
+  color:#00f5a0;
+  font-size:12px;
+  font-weight:bold;
+}
+
+/* CHART */
+.chart-card{
+  background:linear-gradient(135deg,#1f2937,#111827);
+  padding:30px;
+  border-radius:20px;
+  box-shadow:0 20px 40px rgba(0,0,0,0.6);
+}
+
+.axis{
+  stroke:white;
+  stroke-width:2;
+}
+
+.grid{
+  stroke:rgba(255,255,255,0.05);
+}
+
+.label{
+  fill:rgba(255,255,255,0.7);
+  font-size:12px;
+}
+
+.line-animate{
+  stroke-dasharray:1500;
+  stroke-dashoffset:1500;
+  animation:draw 3s ease forwards;
+}
+
+@keyframes draw{
+  to{stroke-dashoffset:0;}
+}
+
+.legend{
+  margin-top:20px;
+  display:flex;
+  gap:25px;
+  font-size:13px;
+}
+
+.dot{
+  display:inline-block;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  margin-right:6px;
+}
+
+.green{background:#00f5a0;}
+.blue{background:#00d9f5;}
+.orange{background:#ff9800;}
+
+</style>
+
+</div>
+
+<script type="module" src="./src/app.js"></script>
+
+</body>
+</html>
